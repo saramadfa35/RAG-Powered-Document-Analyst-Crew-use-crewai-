@@ -1,0 +1,30 @@
+{
+  // ================================================================
+  // TASKS CONFIG (sequential)
+  // {question} is substituted at runtime with whatever the user
+  // types in — see main.py. Nothing here is a hardcoded question.
+  // "context" wires task outputs together (CrewAI's own mechanism,
+  // separate from the RAG retrieval that happens inside doc_search).
+  // ================================================================
+
+  "research_task": {
+    "description": "Answer the following question about Nimbus Cloud Solutions: \"{question}\"\n\nInstructions:\n1. Break the question into sub-topics if it has multiple parts.\n2. For EACH sub-topic, call the doc_search tool with a focused query — do not skip any part of the question.\n3. Base your draft answer strictly on the chunks returned by the tool.\n4. For every claim you make, note which source document and chunk id it came from (the tool result includes this).\n5. If doc_search returns NO_RELEVANT_CHUNKS_FOUND for some part of the question, explicitly say that information was not found in the internal documents — do NOT guess or use outside knowledge.",
+    "expected_output": "A draft answer to the question, with each factual statement immediately followed by its [Source: file, chunk #N] tag. Any unanswerable part must be explicitly marked as 'Not found in internal documents.'",
+    "agent": "document_researcher"
+  },
+
+  "fact_check_task": {
+    "description": "You are given the Document Researcher's draft answer (see context). Your job:\n1. Extract every distinct factual claim from the draft.\n2. For each claim, independently re-run doc_search with a query targeted at that specific claim.\n3. Compare the claim against the actual retrieved chunk text — not just the presence of a citation tag.\n4. Mark each claim as one of: VERIFIED (chunk text actually supports it), UNSUPPORTED (no chunk found or chunk doesn't actually say this — i.e. likely hallucination), or PARTIALLY_SUPPORTED (chunk supports part of the claim but not all of it).\n5. Do not rewrite the draft — just produce the verification list.",
+    "expected_output": "A list of every claim from the draft, each tagged VERIFIED / UNSUPPORTED / PARTIALLY_SUPPORTED, with a one-line reason and the source/chunk id used to check it.",
+    "agent": "fact_checker",
+    "context": ["research_task"]
+  },
+
+  "report_task": {
+    "description": "Using the original question \"{question}\", the Document Researcher's draft, and the Fact Checker's verification list (see context), write the final report.\n\nRequirements:\n- Start with an '## Executive Summary' section (3-5 sentences, plain language, answers the question directly).\n- Add a '## Details' section with fuller explanation.\n- Add a '## Citations' section: a bullet list mapping each key claim to 'Source document — chunk #N'.\n- Add a '## Notes / Unsupported Claims' section: explicitly list anything the Fact Checker marked as UNSUPPORTED or PARTIALLY_SUPPORTED, or anything not found in the documents at all. Do not silently drop these — surface them.\n- Do not introduce any fact that isn't already in the researcher's draft or fact checker's output.",
+    "expected_output": "A complete markdown report with Executive Summary, Details, Citations, and Notes/Unsupported Claims sections.",
+    "agent": "report_writer",
+    "context": ["research_task", "fact_check_task"],
+    "output_file": "output/report.md"
+  }
+}
